@@ -1,2 +1,2 @@
 # dl-tutorials
-Implementations of various tutorial to learn modern deep ML
+Implementations of various tutorials to learn modern deep ML.

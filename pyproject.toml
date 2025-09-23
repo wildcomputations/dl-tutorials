@@ -1,0 +1,28 @@
+[build-system]
+requires = ["flit_core >= 3.12.0, <4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "dl-tutorials"
+description = "Implementations of deep learning tutorials"
+version = "2025.0.0"
+authors = [
+  {name = "Emilie Phillips", email = "emilie@j3.org"},
+]
+license = "GPL-3.0-or-later"
+dependencies = [
+  "torch",
+  "numpy",
+  "pandas",
+  "matplotlib",
+  "einops",
+  
+  # For graph neural networks
+  "torch_geometric",
+]
+
+requires-python = ">=3.13"  # only tested on 3.13
+readme = "README.md"
+
+[project.urls]
+Repository = "https://github.com/wildcomputations/dl-tutorials"

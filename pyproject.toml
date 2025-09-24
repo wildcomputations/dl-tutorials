@@ -12,13 +12,18 @@ authors = [
 license = "GPL-3.0-or-later"
 dependencies = [
   "torch",
+  "lightning",
   "numpy",
   "pandas",
   "matplotlib",
   "einops",
-  
+
   # For graph neural networks
   "torch_geometric",
+
+  # for cleaning up for git
+  "nbclean",
+  "pre-commit",
 ]
 
 requires-python = ">=3.13"  # only tested on 3.13

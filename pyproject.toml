@@ -20,6 +20,7 @@ dependencies = [
 
   # For graph neural networks
   "torch_geometric",
+  "sentence_transformers",
 
   # for cleaning up for git
   "nbclean",

@@ -18,6 +18,9 @@ dependencies = [
   "matplotlib",
   "einops",
 
+  # for CNNs and image projects
+  "torch_vision",
+
   # For graph neural networks
   "torch_geometric",
   "sentence_transformers",

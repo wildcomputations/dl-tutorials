@@ -11,10 +11,14 @@ pip install -e ./
 pre-commit install
 ```
 
-(or uv)
-
+(or poetry)
 
 ## Design
 
 Do Repeat Yourself: since each tutorial is intended as a stand
 alone teaching example, I intentionally repeat code for readability.
+
+## Tutorials
+
+* `dl_tutorials/resnet` simple tutorial demonstrating image classification, and
+  documenting how to use pytorch lightning's training features.

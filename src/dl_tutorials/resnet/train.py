@@ -6,9 +6,12 @@ from typing import Callable
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, random_split, Dataset
+from torch import optim
 import lightning as L
 from lightning.pytorch.callbacks import ModelCheckpoint
+import torchvision
 from torchvision.datasets import MNIST
+from torchvision.transforms import v2
 
 # model
 # - normalized initialization (to prevent vanishing/exploding gradient)
@@ -21,8 +24,6 @@ from torchvision.datasets import MNIST
 # - get it to run
 # - param initialization
 # - hyperparam generaliztion
-# - check with chatGPT how this person on the internet didn't follow resnet
-#   principles
 # - documentation
 
 # maybes?
@@ -34,7 +35,7 @@ from torchvision.datasets import MNIST
 class ResidualLayer(nn.Module):
     """From the https://arxiv.org/abs/1603.05027 follow on paper to resnet"""
     def __init__(self, conv_size: int, num_ch: int, stride: int = 1):
-        super().__init__(self)
+        super().__init__()
         self.residual_mapping = nn.Sequential(
             nn.BatchNorm2d(num_ch),
             nn.ReLU(),
@@ -62,6 +63,7 @@ class ResidualLayer(nn.Module):
 
 class MiniResNet(nn.Module):
     def __init__(self, n_classes: int):  #? change to hyparams? Assuming 32x32 monochrome input
+        super().__init__()
         self.layers = nn.Sequential(
             ResidualLayer(7, 1, 2),  # B, C=2, H=16, W=16
 
@@ -80,13 +82,16 @@ class MiniResNet(nn.Module):
             nn.Linear(8, n_classes)
         )
 
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.layers(x)
+
 
 class MnistClassifyModule(L.LightningModule):
     """
     Train a network to classify the number in MNIST hand writing examples.
     """
     def __init__(self):
-        super().__init__(self)
+        super().__init__()
         self.save_hyperparameters()
 
         self.model = MiniResNet(10)
@@ -100,6 +105,13 @@ class MnistClassifyModule(L.LightningModule):
         output = self.model(inputs)
         loss = self.loss(output, target)
         return loss
+
+    def validation_step(self, batch, batch_idx):
+        return self.training_step(batch, batch_idx)
+
+    def configure_optimizers(self):
+        optimizer = optim.Adam(self.parameters(), lr=1e-3)
+        return optimizer
 
 
 class MnistDataModule(L.LightningDataModule):
@@ -121,8 +133,10 @@ class MnistDataModule(L.LightningDataModule):
         self.mnist_val: Dataset
         self.mnist_test: Dataset
 
-        # TODO: learn proper torchvision transformers
-        self.pad = torchvision.transforms.Pad(2)
+        self.transform = torchvision.transforms.v2.Compose(
+            [torchvision.transforms.v2.Pad(2),
+             torchvision.transforms.v2.ToImage(),
+             torchvision.transforms.v2.ToDtype(torch.float32, scale=True)])
 
     def prepare_data(self):
         """One time download at beginning of process"""
@@ -136,7 +150,7 @@ class MnistDataModule(L.LightningDataModule):
             # Split train vs validation in setup() before the trainer moves the
             # datamodule to the GPUs. This way all GPUs have consistent data sets
 
-            mnist_full = MNIST(self.root_dir, train=True) # TODO transform=self.transform)
+            mnist_full = MNIST(self.root_dir, train=True, transform=self.transform)
             # Use a fixed seed so that variation between loss is entirely due
             # to model changes, not data variability.
             self.mnist_train, self.mnist_val = random_split(
@@ -144,7 +158,8 @@ class MnistDataModule(L.LightningDataModule):
             )
         elif stage == "test":
             # Only need the test set if the stage is testing
-            self.mnist_test = MNIST(self.root_dir, train=False) # TODO transforms
+            self.mnist_test = MNIST(self.root_dir, train=False,
+                                    transform=self.transform)
 
     def train_dataloader(self):
         """Get the training data"""
@@ -176,7 +191,8 @@ def main():
     """
     args = parse_args()
 
-    data_module = MnistDataModule(args.dataset_root, 32)
+    data_module = MnistDataModule(args.dataset_root, 64)
+    model = MnistClassifyModule()  # TODO ability to reload from checkpoint
 
     checkpoint_cb = ModelCheckpoint(
         dirpath="checkpoints/",
@@ -185,9 +201,11 @@ def main():
         every_n_epochs=1,
     )
 
-    trainer = L.Trainer(callbacks=[checkpoint_cb])
+    trainer = L.Trainer(callbacks=[checkpoint_cb],
+                        max_epochs=20)
 
     trainer.fit(model, data_module)
+    trainer.validate(model, data_module)
 
 if __name__ == "__main__":
     main()

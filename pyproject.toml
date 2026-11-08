@@ -19,7 +19,7 @@ dependencies = [
   "einops",
 
   # for CNNs and image projects
-  "torch_vision",
+  "torchvision",
 
   # For graph neural networks
   "torch_geometric",

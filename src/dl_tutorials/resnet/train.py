@@ -19,7 +19,6 @@ from torchvision.transforms import v2
 
 
 # TODO list
-# - padding to 32x32 images
 # - tensorboard reporting
 # - get it to run
 # - param initialization
@@ -34,23 +33,31 @@ from torchvision.transforms import v2
 
 class ResidualLayer(nn.Module):
     """From the https://arxiv.org/abs/1603.05027 follow on paper to resnet"""
-    def __init__(self, conv_size: int, num_ch: int, stride: int = 1):
+    def __init__(self, conv_size: int, num_ch: int, halve: bool):
         super().__init__()
+        out_ch = num_ch
+        out_stride = 1
+        if halve:
+            out_ch = num_ch * 2
+            out_stride = 2
+        padding = conv_size // 2
         self.residual_mapping = nn.Sequential(
             nn.BatchNorm2d(num_ch),
             nn.ReLU(),
-            nn.Conv2d(num_ch, num_ch, conv_size),
+            nn.Conv2d(num_ch, num_ch, conv_size, padding=padding),
             nn.BatchNorm2d(num_ch),
             nn.ReLU(),
-            nn.Conv2d(num_ch, num_ch, conv_size, stride=stride),
+            nn.Conv2d(num_ch, out_ch, conv_size, stride=out_stride,
+                      padding=padding),
         )
         self.projection: Callable[[torch.Tensor], torch.Tensor]
-        if stride != 1:
-            self.projection = nn.Conv2d(num_ch, num_ch * 2, 1, stride)
+        if halve:
+            self.projection = nn.Conv2d(num_ch, out_ch, 1, out_stride)
         else:
             self.projection = lambda x: x
 
         # TODO normalization
+        # TODO: projection init weights=1.0, biases=0.0
 
     def forward(self, x: torch.Tensor):
         """
@@ -65,25 +72,27 @@ class MiniResNet(nn.Module):
     def __init__(self, n_classes: int):  #? change to hyparams? Assuming 32x32 monochrome input
         super().__init__()
         self.layers = nn.Sequential(
-            ResidualLayer(7, 1, 2),  # B, C=2, H=16, W=16
+            ResidualLayer(7, 1, True),  # B, C=2, H=16, W=16
 
-            ResidualLayer(3, 2),  # B, C=2, H=16, W=16
-            ResidualLayer(3, 2),  # B, C=2, H=16, W=16
-            ResidualLayer(3, 2, 2),  # B, C=4, H=8, W=8
+            ResidualLayer(3, 2, False),  # B, C=2, H=16, W=16
+            ResidualLayer(3, 2, False),  # B, C=2, H=16, W=16
+            ResidualLayer(3, 2, True),  # B, C=4, H=8, W=8
 
-            ResidualLayer(3, 4),  # B, C=4, H=8, W=8
-            ResidualLayer(3, 4),  # B, C=4, H=8, W=8
-            ResidualLayer(3, 4, 2),  # B, C=8, H=4, W=4
+            ResidualLayer(3, 4, False),  # B, C=4, H=8, W=8
+            ResidualLayer(3, 4, False),  # B, C=4, H=8, W=8
+            ResidualLayer(3, 4, True),  # B, C=8, H=4, W=4
 
             # Now flatten
-            nn.AvgPool2d(4),  # B, C=8
-
-            # and a fully connected layer
-            nn.Linear(8, n_classes)
+            nn.AvgPool2d(4),  # B, C=8, H=1, W=1
         )
 
+            # and a fully connected layer
+        self.lin = nn.Linear(8, n_classes)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.layers(x)
+        x = self.layers(x)  # B, C=8, H=1, W=1
+        x = x.reshape(x.shape[:2])  # drop unit height and width
+        return self.lin(x)
 
 
 class MnistClassifyModule(L.LightningModule):

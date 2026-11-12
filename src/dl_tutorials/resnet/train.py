@@ -19,16 +19,21 @@ from torchvision.transforms import v2
 
 
 # TODO list
-# - tensorboard reporting
-# - get it to run
 # - param initialization
 # - hyperparam generaliztion
 # - documentation
+# - torchmetrics
+# - tensorboard display example images
+# - analysis of which cases are working and which aren't - notebook? plots in
+#   training?
+# - make sure I understand what device it is using
 
-# maybes?
+# maybes? Or do these in a unet implementing rectified flow
 # - different initialization
 # - different learning rate schedules
 # - weight decay
+# - EMA
+# - early stopping
 
 
 class ResidualLayer(nn.Module):
@@ -113,10 +118,18 @@ class MnistClassifyModule(L.LightningModule):
         inputs, target = batch
         output = self.model(inputs)
         loss = self.loss(output, target)
+        self.log_dict({'train_loss': loss})
         return loss
 
     def validation_step(self, batch, batch_idx):
-        return self.training_step(batch, batch_idx)
+        loss = self.training_step(batch, batch_idx)
+        self.log_dict({'val_loss': loss}, on_step=False)
+        return loss
+
+    def test_step(self, batch, batch_idx):
+        loss = self.training_step(batch, batch_idx)
+        self.log_dict({'test_loss': loss}, on_step=False)
+        return loss
 
     def configure_optimizers(self):
         optimizer = optim.Adam(self.parameters(), lr=1e-3)
@@ -172,15 +185,18 @@ class MnistDataModule(L.LightningDataModule):
 
     def train_dataloader(self):
         """Get the training data"""
-        return DataLoader(self.mnist_train, batch_size=self.batch_size)
+        return DataLoader(self.mnist_train, batch_size=self.batch_size,
+                          num_workers=5)  # TODO: how to pick?
 
     def val_dataloader(self):
         """Get the training data"""
-        return DataLoader(self.mnist_val, batch_size=self.batch_size)
+        return DataLoader(self.mnist_val, batch_size=self.batch_size,
+                          num_workers=5)  # TODO: how to pick?
 
     def test_dataloader(self):
         """Get the training data"""
-        return DataLoader(self.mnist_test, batch_size=self.batch_size)
+        return DataLoader(self.mnist_test, batch_size=self.batch_size,
+                          num_workers=5)  # TODO: how to pick?
 
 
 def parse_args() -> argparse.Namespace:
@@ -200,6 +216,8 @@ def main():
     """
     args = parse_args()
 
+    # TODO - seed everything
+
     data_module = MnistDataModule(args.dataset_root, 64)
     model = MnistClassifyModule()  # TODO ability to reload from checkpoint
 
@@ -210,11 +228,13 @@ def main():
         every_n_epochs=1,
     )
 
+    # TODO - learning rate logger, gradient and weights loggers.
     trainer = L.Trainer(callbacks=[checkpoint_cb],
                         max_epochs=20)
 
     trainer.fit(model, data_module)
     trainer.validate(model, data_module)
+    trainer.test(model, data_module)
 
 if __name__ == "__main__":
     main()

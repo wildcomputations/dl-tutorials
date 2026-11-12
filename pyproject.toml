@@ -17,6 +17,7 @@ dependencies = [
   "pandas",
   "matplotlib",
   "einops",
+  "tensorboard",
 
   # for CNNs and image projects
   "torchvision",
